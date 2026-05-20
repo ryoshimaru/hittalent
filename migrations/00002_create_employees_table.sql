@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE employee(
+CREATE TABLE employees(
     id SERIAL PRIMARY KEY, 
     department_id INT NOT NULL, 
     full_name VARCHAR(200) NOT NULL, 
@@ -14,4 +14,4 @@ CREATE TABLE employee(
 );
 
 -- +goose Down
-DROP TABLE IF EXISTS employee;
+DROP TABLE IF EXISTS employees;
