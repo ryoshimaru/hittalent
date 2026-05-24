@@ -84,6 +84,7 @@ func (h *EmployeeHandler) CreateEmployee(w http.ResponseWriter, r *http.Request)
 	hiredAt, err := parseHiredAt(request.HiredAt)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	employee, err := h.employeeService.CreateEmployee(departmentID, request.FullName, request.Position, hiredAt)

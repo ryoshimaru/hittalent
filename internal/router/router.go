@@ -27,7 +27,7 @@ func New(db *gorm.DB) http.Handler {
 	})
 
 	mux.HandleFunc("POST /departments/", departmentHandler.CreateDepartment)
-	mux.HandleFunc("POST /departments/{id}/employees", employeeHandler.CreateEmployee)
+	mux.HandleFunc("POST /departments/{id}/employees/", employeeHandler.CreateEmployee)
 	mux.HandleFunc("GET /departments/{id}", departmentHandler.GetDepartment)
 	mux.HandleFunc("PATCH /departments/{id}", departmentHandler.UpdateDepartment)
 	mux.HandleFunc("DELETE /departments/{id}", departmentHandler.DeleteDepartment)
