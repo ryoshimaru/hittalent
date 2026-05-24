@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/ryoshimaru/hittalent/internal/services"
 )
@@ -37,6 +38,9 @@ func (h *DepartmentHandler) handleDepartmentError(w http.ResponseWriter, err err
 	case errors.Is(err, services.ErrDepartmentNameAlreadyExists):
 		WriteError(w, http.StatusConflict, err.Error())
 
+	case errors.Is(err, services.ErrDepartmentNotFound):
+		WriteError(w, http.StatusNotFound, err.Error())
+
 	default:
 		WriteError(w, http.StatusInternalServerError, "internal server error")
 	}
@@ -57,4 +61,68 @@ func (h *DepartmentHandler) CreateDepartment(w http.ResponseWriter, r *http.Requ
 	}
 
 	WriteJSON(w, http.StatusCreated, department)
+}
+
+func (h *DepartmentHandler) GetDepartment(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		WriteError(w, http.StatusBadRequest, "invalid department id")
+		return
+	}
+
+	depth, err := parseDepth(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	includeEmployees, err := parseIncludeEmployees(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response, err := h.departmentService.GetDepartmentTree(id, depth, includeEmployees)
+	if err != nil {
+		h.handleDepartmentError(w, err)
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, response)
+}
+
+func parseDepth(r *http.Request) (int, error) {
+	depthValue := r.URL.Query().Get("depth")
+	if depthValue == "" {
+		return 1, nil
+	}
+
+	depth, err := strconv.Atoi(depthValue)
+	if err != nil {
+		return 0, errors.New("depth must be an integer")
+	}
+
+	if depth < 0 {
+		return 0, errors.New("depth must be greater than or equal to 0")
+	}
+
+	if depth > 5 {
+		return 0, errors.New("depth must be less than or equal to 5")
+	}
+
+	return depth, nil
+}
+
+func parseIncludeEmployees(r *http.Request) (bool, error) {
+	value := r.URL.Query().Get("include_employees")
+	if value == "" {
+		return true, nil
+	}
+
+	includeEmployees, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, errors.New("include_employees must be true or false")
+	}
+
+	return includeEmployees, nil
 }

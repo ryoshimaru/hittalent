@@ -53,3 +53,34 @@ func (r *DepartmentRepository) ExistsNameInParent(name string, parentID *int) (b
 
 	return count > 0, nil
 }
+
+func (r *DepartmentRepository) GetByID(id int) (*models.Department, error) {
+	var department models.Department
+
+	err := r.db.First(&department, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &department, nil
+}
+
+func (r *DepartmentRepository) GetChildrenByParentID(parentID int) ([]models.Department, error) {
+	var departments []models.Department
+
+	err := r.db.
+		Where("parent_id = ?", parentID).
+		Order("created_at ASC").
+		Find(&departments).
+		Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return departments, nil
+}

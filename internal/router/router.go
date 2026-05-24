@@ -14,11 +14,11 @@ func New(db *gorm.DB) http.Handler {
 	mux := http.NewServeMux()
 
 	departmentRepository := repositories.NewDepartmentRepository(db)
-	departmentService := services.NewDepartmentService(departmentRepository)
+	employeeRepository := repositories.NewEmployeeRepository(db)
+	departmentService := services.NewDepartmentService(departmentRepository, employeeRepository)
 	departmentHandler := handlers.NewDepartmentHandler(departmentService)
 
-	employeeRepository := repositories.NewEmployeeRepository(db)
-	employeeService := services.NewEmployeeRepository(*employeeRepository, *departmentRepository)
+	employeeService := services.NewEmployeeService(*employeeRepository, *departmentRepository)
 	employeeHandler := handlers.NewEmployeeHandler(employeeService)
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +28,7 @@ func New(db *gorm.DB) http.Handler {
 
 	mux.HandleFunc("POST /departments/", departmentHandler.CreateDepartment)
 	mux.HandleFunc("POST /departments/{id}/employees", employeeHandler.CreateEmployee)
+	mux.HandleFunc("GET /departments/{id}", departmentHandler.GetDepartment)
 
 	return mux
 }

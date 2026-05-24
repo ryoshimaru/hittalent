@@ -22,7 +22,7 @@ type EmployeeService struct {
 	departmentRepo *repositories.DepartmentRepository
 }
 
-func NewEmployeeRepository(employeeRepo repositories.EmployeeRepository, departmentRepo repositories.DepartmentRepository) *EmployeeService {
+func NewEmployeeService(employeeRepo repositories.EmployeeRepository, departmentRepo repositories.DepartmentRepository) *EmployeeService {
 	return &EmployeeService{
 		employeeRepo:   &employeeRepo,
 		departmentRepo: &departmentRepo,
@@ -58,16 +58,16 @@ func (s *EmployeeService) CreateEmployee(departmentId int, fullName string, posi
 		return nil, ErrEmployeeDepartmentDoesntExists
 	}
 
-	employeeToCreate := *&models.Employee{
+	employeeToCreate := &models.Employee{
 		DepartmentID: departmentId,
 		FullName:     fullName,
 		Position:     position,
 		HiredAt:      hired_at,
 	}
 
-	if err := s.employeeRepo.Create(&employeeToCreate); err != nil {
+	if err := s.employeeRepo.Create(employeeToCreate); err != nil {
 		return nil, err
 	}
 
-	return &employeeToCreate, nil
+	return employeeToCreate, nil
 }
