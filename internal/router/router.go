@@ -15,7 +15,7 @@ func New(db *gorm.DB) http.Handler {
 
 	departmentRepository := repositories.NewDepartmentRepository(db)
 	employeeRepository := repositories.NewEmployeeRepository(db)
-	departmentService := services.NewDepartmentService(departmentRepository, employeeRepository)
+	departmentService := services.NewDepartmentService(db, departmentRepository, employeeRepository)
 	departmentHandler := handlers.NewDepartmentHandler(departmentService)
 
 	employeeService := services.NewEmployeeService(*employeeRepository, *departmentRepository)
@@ -30,6 +30,7 @@ func New(db *gorm.DB) http.Handler {
 	mux.HandleFunc("POST /departments/{id}/employees", employeeHandler.CreateEmployee)
 	mux.HandleFunc("GET /departments/{id}", departmentHandler.GetDepartment)
 	mux.HandleFunc("PATCH /departments/{id}", departmentHandler.UpdateDepartment)
+	mux.HandleFunc("DELETE /departments/{id}", departmentHandler.DeleteDepartment)
 
 	return mux
 }

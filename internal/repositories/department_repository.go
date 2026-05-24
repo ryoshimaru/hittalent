@@ -21,6 +21,20 @@ func (r *DepartmentRepository) Create(department *models.Department) error {
 	return r.db.Create(department).Error
 }
 
+func (r *DepartmentRepository) DeleteByID(id int) error {
+	return r.db.Delete(&models.Department{}, id).Error
+}
+
+func (r *DepartmentRepository) UpdateChildrenParentID(oldParentID int, newParentID *int) error {
+	query := r.db.Model(&models.Department{}).Where("parent_id = ?", oldParentID)
+
+	if newParentID == nil {
+		return query.Update("parent_id", nil).Error
+	}
+
+	return query.Update("parent_id", *newParentID).Error
+}
+
 func (r *DepartmentRepository) ExistsByID(id int) (bool, error) {
 	var department models.Department
 

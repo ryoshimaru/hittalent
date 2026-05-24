@@ -30,8 +30,50 @@ type UpdateDepartmentRequest struct {
 	ParentID json.RawMessage `json:"parent_id"`
 }
 
+func (h *DepartmentHandler) DeleteDepartment(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		WriteError(w, http.StatusBadRequest, "invalid department id")
+		return
+	}
+
+	mode := r.URL.Query().Get("mode")
+
+	var reassignToDepartmentID *int
+
+	reassignValue := r.URL.Query().Get("reassign_to_department_id")
+	if reassignValue != "" {
+		parsedID, err := strconv.Atoi(reassignValue)
+		if err != nil || parsedID <= 0 {
+			WriteError(w, http.StatusBadRequest, "invalid reassign_to_department_id")
+			return
+		}
+
+		reassignToDepartmentID = &parsedID
+	}
+
+	err = h.departmentService.DeleteDepartment(id, mode, reassignToDepartmentID)
+	if err != nil {
+		h.handleDepartmentError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *DepartmentHandler) handleDepartmentError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, services.ErrDepartmentDeleteModeInvalid):
+		WriteError(w, http.StatusBadRequest, err.Error())
+
+	case errors.Is(err, services.ErrReassignToDepartmentIDRequired):
+		WriteError(w, http.StatusBadRequest, err.Error())
+
+	case errors.Is(err, services.ErrReassignToSameDepartment):
+		WriteError(w, http.StatusBadRequest, err.Error())
+
+	case errors.Is(err, services.ErrReassignToDepartmentDoesntExist):
+		WriteError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, services.ErrDepartmentNameRequired):
 		WriteError(w, http.StatusBadRequest, err.Error())
 

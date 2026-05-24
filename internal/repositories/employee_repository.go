@@ -34,3 +34,7 @@ func (r *EmployeeRepository) GetByDepartmentID(departmentID int) ([]models.Emplo
 
 	return employees, nil
 }
+
+func (r *EmployeeRepository) ReassignByDepartmentID(fromDepartmentID int, toDepartmentID int) error {
+	return r.db.Model(&models.Employee{}).Where("department_id = ?", fromDepartmentID).Update("department_id", toDepartmentID).Error
+}

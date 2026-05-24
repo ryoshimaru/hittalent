@@ -6,9 +6,15 @@ import (
 
 	"github.com/ryoshimaru/hittalent/internal/models"
 	"github.com/ryoshimaru/hittalent/internal/repositories"
+	"gorm.io/gorm"
 )
 
 var (
+	ErrDepartmentDeleteModeInvalid     = errors.New("delete mode must be cascade or reassign")
+	ErrReassignToDepartmentIDRequired  = errors.New("reassign_to_department_id is required")
+	ErrReassignToSameDepartment        = errors.New("cannot reassign employees to the same department")
+	ErrReassignToDepartmentDoesntExist = errors.New("reassign_to_department_id does not exist")
+
 	ErrDepartmentCannotBeParentOfItself = errors.New("department cannot be parent of itself")
 	ErrDepartmentCycleDetected          = errors.New("department cycle detected")
 
@@ -20,12 +26,14 @@ var (
 )
 
 type DepartmentService struct {
+	db             *gorm.DB
 	departmentRepo *repositories.DepartmentRepository
 	employeeRepo   *repositories.EmployeeRepository
 }
 
-func NewDepartmentService(departmentRepo *repositories.DepartmentRepository, employeeRepo *repositories.EmployeeRepository) *DepartmentService {
+func NewDepartmentService(db *gorm.DB, departmentRepo *repositories.DepartmentRepository, employeeRepo *repositories.EmployeeRepository) *DepartmentService {
 	return &DepartmentService{
+		db:             db,
 		departmentRepo: departmentRepo,
 		employeeRepo:   employeeRepo,
 	}
@@ -35,6 +43,80 @@ type DepartmentTreeResponse struct {
 	Department models.Department        `json:"department"`
 	Employees  *[]models.Employee       `json:"employees,omitempty"`
 	Children   []DepartmentTreeResponse `json:"children"`
+}
+
+func (s *DepartmentService) DeleteDepartment(id int, mode string, reassignToDepartmentID *int) error {
+	mode = strings.TrimSpace(mode)
+
+	department, err := s.departmentRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	if department == nil {
+		return ErrDepartmentNotFound
+	}
+
+	switch mode {
+	case "cascade":
+		return s.departmentRepo.DeleteByID(id)
+
+	case "reassign":
+		if reassignToDepartmentID == nil {
+			return ErrReassignToDepartmentIDRequired
+		}
+
+		if *reassignToDepartmentID == id {
+			return ErrReassignToSameDepartment
+		}
+
+		targetExists, err := s.departmentRepo.ExistsByID(*reassignToDepartmentID)
+		if err != nil {
+			return err
+		}
+
+		if !targetExists {
+			return ErrReassignToDepartmentDoesntExist
+		}
+
+		children, err := s.departmentRepo.GetChildrenByParentID(id)
+		if err != nil {
+			return err
+		}
+
+		for _, child := range children {
+			nameExists, err := s.departmentRepo.ExistsByNameAndParentIDExceptID(child.Name, department.ParentID, child.ID)
+			if err != nil {
+				return err
+			}
+
+			if nameExists {
+				return ErrDepartmentNameAlreadyExists
+			}
+		}
+
+		return s.db.Transaction(func(tx *gorm.DB) error {
+			departmentRepo := repositories.NewDepartmentRepository(tx)
+			employeeRepo := repositories.NewEmployeeRepository(tx)
+
+			if err := employeeRepo.ReassignByDepartmentID(id, *reassignToDepartmentID); err != nil {
+				return err
+			}
+
+			if err := departmentRepo.UpdateChildrenParentID(id, department.ParentID); err != nil {
+				return err
+			}
+
+			if err := departmentRepo.DeleteByID(id); err != nil {
+				return err
+			}
+
+			return nil
+		})
+
+	default:
+		return ErrDepartmentDeleteModeInvalid
+	}
 }
 
 func (s *DepartmentService) buildDepartmentTree(department models.Department, depth int, includeEmployees bool) (*DepartmentTreeResponse, error) {
