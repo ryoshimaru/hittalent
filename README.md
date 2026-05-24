@@ -12,4 +12,4 @@ models : модели базы данных
 # ЗАПУСК ПРОЕКТА 
 после клонирования в корне проекта: docker compose up --build 
 
-Для проверки работы: localhost:8080/health (8080 по дефолту, у вас может быть другое) 
+Для проверки работы: localhost:{yourport(8080 by default)}/health 
