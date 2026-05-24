@@ -7,28 +7,24 @@ import (
 
 	"github.com/ryoshimaru/hittalent/internal/config"
 	"github.com/ryoshimaru/hittalent/internal/database"
+	"github.com/ryoshimaru/hittalent/internal/router"
 )
 
 func main() {
 	cfg := config.Load()
 
-	_, err := database.Connect(cfg)
+	db, err := database.Connect(cfg)
 	if err != nil {
 		log.Fatal("failed to connect to database: ", err)
 	}
 
-	mux := http.NewServeMux()
-
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
+	handler := router.New(db)
 
 	address := fmt.Sprintf(":%s", cfg.HTTPPort)
 
 	log.Println("server started on", address)
 
-	if err := http.ListenAndServe(address, mux); err != nil {
+	if err := http.ListenAndServe(address, handler); err != nil {
 		log.Fatal("server error: ", err)
 	}
 }
