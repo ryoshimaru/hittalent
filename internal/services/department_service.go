@@ -9,6 +9,9 @@ import (
 )
 
 var (
+	ErrDepartmentCannotBeParentOfItself = errors.New("department cannot be parent of itself")
+	ErrDepartmentCycleDetected          = errors.New("department cycle detected")
+
 	ErrDepartmentNotFound          = errors.New("department not found")
 	ErrDepartmentNameAlreadyExists = errors.New("department name already exists in this parent")
 	ErrDepartmentNameRequired      = errors.New("department name is required")
@@ -125,4 +128,101 @@ func (d *DepartmentService) CreateDepartment(name string, parentID *int) (*model
 	}
 
 	return departmentToCreate, nil
+}
+
+func (s *DepartmentService) wouldCreateCycle(departmentID int, newParentID int) (bool, error) {
+	currentParentID := &newParentID
+
+	for currentParentID != nil {
+		if *currentParentID == departmentID {
+			return true, nil
+		}
+
+		parent, err := s.departmentRepo.GetByID(*currentParentID)
+		if err != nil {
+			return false, err
+		}
+
+		if parent == nil {
+			return false, ErrParentDepartmentNotFound
+		}
+
+		currentParentID = parent.ParentID
+	}
+
+	return false, nil
+}
+
+func (s *DepartmentService) UpdateDepartment(id int, name *string, parentIDProvided bool, parentID *int) (*models.Department, error) {
+	department, err := s.departmentRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if department == nil {
+		return nil, ErrDepartmentNotFound
+	}
+
+	newName := department.Name
+	newParentID := department.ParentID
+
+	if name != nil {
+		trimmedName := strings.TrimSpace(*name)
+
+		if trimmedName == "" {
+			return nil, ErrDepartmentNameRequired
+		}
+
+		if len(trimmedName) > 200 {
+			return nil, ErrDepartmentNameTooLong
+		}
+
+		newName = trimmedName
+	}
+
+	if parentIDProvided {
+		if parentID != nil {
+			if *parentID == id {
+				return nil, ErrDepartmentCannotBeParentOfItself
+			}
+
+			parentExists, err := s.departmentRepo.ExistsByID(*parentID)
+			if err != nil {
+				return nil, err
+			}
+
+			if !parentExists {
+				return nil, ErrParentDepartmentNotFound
+			}
+
+			hasCycle, err := s.wouldCreateCycle(id, *parentID)
+			if err != nil {
+				return nil, err
+			}
+
+			if hasCycle {
+				return nil, ErrDepartmentCycleDetected
+			}
+		}
+
+		newParentID = parentID
+	}
+
+	nameExists, err := s.departmentRepo.ExistsByNameAndParentIDExceptID(newName, newParentID, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if nameExists {
+		return nil, ErrDepartmentNameAlreadyExists
+	}
+
+	department.Name = newName
+	department.ParentID = newParentID
+
+	if err := s.departmentRepo.Update(department); err != nil {
+		return nil, err
+	}
+
+	return department, nil
 }

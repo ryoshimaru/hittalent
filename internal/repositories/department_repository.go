@@ -84,3 +84,25 @@ func (r *DepartmentRepository) GetChildrenByParentID(parentID int) ([]models.Dep
 
 	return departments, nil
 }
+
+func (r *DepartmentRepository) Update(department *models.Department) error {
+	return r.db.Save(department).Error
+}
+
+func (r *DepartmentRepository) ExistsByNameAndParentIDExceptID(name string, parentID *int, excludeID int) (bool, error) {
+	var count int64
+
+	query := r.db.Model(&models.Department{}).Where("name = ?", name).Where("id <> ?", excludeID)
+
+	if parentID == nil {
+		query = query.Where("parent_id IS NULL")
+	} else {
+		query = query.Where("parent_id = ?", *parentID)
+	}
+
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -24,6 +25,11 @@ type CreateDepartmentRequest struct {
 	ParentID *int   `json:"parent_id"`
 }
 
+type UpdateDepartmentRequest struct {
+	Name     *string         `json:"name"`
+	ParentID json.RawMessage `json:"parent_id"`
+}
+
 func (h *DepartmentHandler) handleDepartmentError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, services.ErrDepartmentNameRequired):
@@ -40,6 +46,12 @@ func (h *DepartmentHandler) handleDepartmentError(w http.ResponseWriter, err err
 
 	case errors.Is(err, services.ErrDepartmentNotFound):
 		WriteError(w, http.StatusNotFound, err.Error())
+
+	case errors.Is(err, services.ErrDepartmentCannotBeParentOfItself):
+		WriteError(w, http.StatusBadRequest, err.Error())
+
+	case errors.Is(err, services.ErrDepartmentCycleDetected):
+		WriteError(w, http.StatusConflict, err.Error())
 
 	default:
 		WriteError(w, http.StatusInternalServerError, "internal server error")
@@ -125,4 +137,53 @@ func parseIncludeEmployees(r *http.Request) (bool, error) {
 	}
 
 	return includeEmployees, nil
+}
+
+func (h *DepartmentHandler) UpdateDepartment(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id < 0 {
+		WriteError(w, http.StatusBadRequest, "invalid department id")
+		return
+	}
+
+	var request UpdateDepartmentRequest
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&request); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+
+	parentIDProvided := request.ParentID != nil
+	var parentID *int
+
+	if parentIDProvided {
+		if bytes.Equal(request.ParentID, []byte("null")) {
+			parentID = nil
+		} else {
+			var parsedParentID int
+
+			if err := json.Unmarshal(request.ParentID, &parsedParentID); err != nil {
+				WriteError(w, http.StatusBadRequest, "parent_id must be integer or null")
+				return
+			}
+
+			if parsedParentID <= 0 {
+				WriteError(w, http.StatusBadRequest, "parent_id must be greater than 0")
+				return
+			}
+
+			parentID = &parsedParentID
+		}
+	}
+
+	department, err := h.departmentService.UpdateDepartment(id, request.Name, parentIDProvided, parentID)
+	if err != nil {
+		h.handleDepartmentError(w, err)
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, department)
 }
